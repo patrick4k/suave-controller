@@ -2,6 +2,7 @@ import os
 import argparse
 import asyncio
 import traceback
+from enum import Enum
 from datetime import datetime
 from mavsdk import System
 from mavsdk.offboard import (OffboardError, PositionNedYaw, VelocityNedYaw, Attitude, AttitudeRate, VelocityBodyYawspeed, AccelerationNed)
@@ -161,27 +162,26 @@ async def print_state():
         log("Drone meets requirements for arming without GPS.")
     
 async def connect_drone():
-    connection_string = ""
-    if args.connect is not None:
-        connection_string = args.connect
-    else: 
+    type = getint("Input connection type [0] SERIAL, [1] SITL: ")
+    address = ""
+    if type == 0:
         connection_string = input("Enter device: ")
-    address = f"serial://{connection_string}:57600"
-    log(f"Connecting to address = {address}")
-    try:
-        await drone.connect(system_address=address)
-        print("Waiting for drone to connect...")
-        connected = False
-        async for state in drone.core.connection_state():
-            if state.is_connected:
-                connected = True
-                break
-        if connected:
-            succ(f"Successfully connected to {address}!")
-        else:
-            err(f"Not successfully connected to {address}!")
-    except:
-        err(f"Failed to connect to {address}")
+        address = f"serial://{connection_string}:57600"
+        log(f"Connecting to address = {address}")
+    elif type != 1:
+        err("Invalid choice")
+        return
+    log("Waiting for drone to connect...")
+    await drone.connect(system_address=address)
+    connected = False
+    async for state in drone.core.connection_state():
+        if state.is_connected:
+            connected = True
+            break
+    if connected:
+        succ(f"Successfully connected!")
+    else:
+        err(f"Not successfully connected!")
     
 async def connect():
     result = await connect_drone()
@@ -242,9 +242,9 @@ async def attitude_setpoint():
     await drone.offboard.set_attitude(Attitude(0.0, 0.0, 0.0, 0.0))
     succ("Setpoint is set!")
 async def thrust():
-    thrust = getfloat("Enter thrust [0-1]: ")
-    if thrust < 0 or thrust > 1:
-        throw("Thrust not in range [0-1]")
+    thrust = getfloat("Enter thrust [-1 -> 1]: ")
+    if thrust < -1 or thrust > 1:
+        throw("Thrust not in range [-1 -> 1]")
     log(f"Setting thrust to {thrust}")
     await drone.offboard.set_attitude(Attitude(0.0, 0.0, 0.0, thrust))
     succ("Finished setting thrust!")
@@ -361,6 +361,25 @@ def sleep(n):
         await asyncio.sleep(n)
         log("Awake!")
     return sleep_n
+
+async def set_parameter():
+    type = getint("Type [0] int, [1] float: ")
+    name = getstr("Param: ")
+    match type:
+        case 0:
+            val = await drone.param.get_param_int(name)
+            log(f"{name} = {val}")
+            val = getint("Value: ")
+            await drone.param.set_param_int(name, val)
+            val = await drone.param.get_param_int(name)
+            log(f"{name} updated to {val}")
+        case 1:
+            val = await drone.param.get_param_float(name)
+            log(f"{name} = {val}")
+            val = getfloat("Value: ")
+            await drone.param.set_param_float(name, val)
+            val = await drone.param.get_param_float(name)
+            log(f"{name} updated to {val}")    
     
 ##################################################################################
 # Main ###########################################################################
@@ -395,18 +414,28 @@ flight_plan = {
     "arm": [arm],
     "disarm": [disarm],
     "offboard": [start_offboard, sleep(SLEEP_TIME), stop_offboard],
-    "thrust": [arm, attitude_setpoint, start_offboard, thrust, sleep(SLEEP_TIME), attitude_setpoint, sleep(SLEEP_TIME), disarm],
-    "upnorth": [arm, velocity_ned_setpoint, start_offboard, set_velocity_up, sleep(2), set_velocity_north, sleep(10), velocity_ned_setpoint, sleep(SLEEP_TIME), disarm],
-    "attitude": [arm, attitude_setpoint, start_offboard, sleep(2), set_attitude, sleep(SLEEP_TIME), disarm],
-    "velocity_ned": [arm, velocity_ned_setpoint, start_offboard, set_velocity_ned, sleep(SLEEP_TIME), disarm],
-    "velocity_body": [arm, velocity_body_setpoint, start_offboard, set_velocity_body, sleep(SLEEP_TIME), disarm],
-    "position": [arm, position_ned_setpoint, start_offboard, set_position_ned, sleep(SLEEP_TIME), disarm],
-    "acceleration": [arm, acceleration_ned_setpoint, start_offboard, set_acceleration_ned, sleep(SLEEP_TIME), disarm],
-    "posvel": [arm, position_velocity_ned_setpoint, start_offboard, set_position_velocity_ned, sleep(SLEEP_TIME), disarm],
+    "thrust": [arm, attitude_setpoint, start_offboard, thrust, sleep(SLEEP_TIME), attitude_setpoint],
+    "upnorth": [arm, velocity_ned_setpoint, start_offboard, set_velocity_up, sleep(2), set_velocity_north, sleep(10), velocity_ned_setpoint],
+    "attitude": [arm, attitude_setpoint, start_offboard, sleep(2), set_attitude],
+    "velocity_ned": [arm, velocity_ned_setpoint, start_offboard, set_velocity_ned],
+    "velocity_body": [arm, velocity_body_setpoint, start_offboard, set_velocity_body],
+    "position": [arm, position_ned_setpoint, start_offboard, set_position_ned],
+    "acceleration": [arm, acceleration_ned_setpoint, start_offboard, set_acceleration_ned],
+    "posvel": [arm, position_velocity_ned_setpoint, start_offboard, set_position_velocity_ned],
     "write": [write_now],
     "debug": [print_state],
     "edit": [print_params, edit_params],
     "exit": [write_exit, exit_program]
+}
+
+flight_plan = {
+    "c": [connect_drone, print_state],
+    "a": [arm],
+    "d": [disarm],
+    "t": [thrust],
+    "obon": [attitude_setpoint, start_offboard],
+    "oboff": [stop_offboard],
+    "p": [set_parameter]
 }
 
 # Execute program
