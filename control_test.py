@@ -433,9 +433,11 @@ flight_plan = {
     "a": [arm],
     "d": [disarm],
     "t": [thrust],
+    "p": [position_ned_setpoint, set_position_ned],
+    "v": [velocity_ned_setpoint, set_velocity_ned],
+    "vb": [velocity_body_setpoint, set_velocity_body],
     "obon": [attitude_setpoint, start_offboard],
-    "oboff": [stop_offboard],
-    "p": [set_parameter]
+    "oboff": [stop_offboard]
 }
 
 # Execute program
