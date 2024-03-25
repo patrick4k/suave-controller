@@ -162,10 +162,13 @@ async def print_state():
         log("Drone meets requirements for arming without GPS.")
     
 async def connect_drone():
-    type = getint("Input connection type [0] SERIAL, [1] SITL: ")
+    #type = getint("Input connection type [0] SERIAL, [1] SITL: ")
+    type = 0
     address = ""
     if type == 0:
-        connection_string = input("Enter device: ")
+        # connection_string = input("Enter device: ")
+        connection_string = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B0019BWS-if00-port0"
+        # connection_string = "/dev/ttyS0"
         address = f"serial://{connection_string}:57600"
         log(f"Connecting to address = {address}")
     elif type != 1:
